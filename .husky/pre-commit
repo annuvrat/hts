@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+
+echo "Running pre-commit checks..."
+
+bun run lint || exit 1
+bun run typecheck || exit 1
