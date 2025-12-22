@@ -4,7 +4,7 @@ bun install
 ```
 
 To run:
-```sh
+```sh as
 bun run dev
 ```
 
