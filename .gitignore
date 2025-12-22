@@ -1,6 +1,7 @@
 # deps
 node_modules/
 bun.lockb
-
+bun.lock
+node_modules
 
 
