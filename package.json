@@ -3,11 +3,14 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/server.ts",
+    "test:stt": "bun run test-stt.ts",
     "prepare": "husky",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
+    "@google-cloud/speech": "^7.2.1",
+    "@google-cloud/vertexai": "^1.10.0",
     "hono": "^4.11.1"
   },
   "devDependencies": {
