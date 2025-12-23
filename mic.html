@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <button id="start">Start</button>
+    <button id="stop">Stop</button>
+
+    <script>
+      let ws;
+      let audioContext;
+      let processor;
+      let source;
+      let playTime = 0;
+
+      function playAudioChunk(base64) {
+        const audioData = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        audioContext.decodeAudioData(audioData.buffer).then(buffer => {
+          const src = audioContext.createBufferSource();
+          src.buffer = buffer;
+          src.connect(audioContext.destination);
+
+          if (playTime < audioContext.currentTime) {
+            playTime = audioContext.currentTime;
+          }
+
+          src.start(playTime);
+          playTime += buffer.duration;
+        });
+      }
+
+      function floatTo16BitPCM(float32Array) {
+        const buffer = new ArrayBuffer(float32Array.length * 2);
+        const view = new DataView(buffer);
+        let offset = 0;
+        for (let i = 0; i < float32Array.length; i++, offset += 2) {
+          let sample = Math.max(-1, Math.min(1, float32Array[i]));
+          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+        }
+        return new Uint8Array(buffer);
+      }
+
+      function downsample(buffer, sampleRate, targetRate) {
+        if (sampleRate === targetRate) return buffer;
+        const ratio = sampleRate / targetRate;
+        const newLength = Math.round(buffer.length / ratio);
+        const result = new Float32Array(newLength);
+        let offset = 0;
+        for (let i = 0; i < newLength; i++) {
+          result[i] = buffer[Math.floor(offset)];
+          offset += ratio;
+        }
+        return result;
+      }
+
+      document.getElementById("start").onclick = async () => {
+        audioContext = new AudioContext();
+        playTime = audioContext.currentTime;
+
+        ws = new WebSocket("ws://localhost:3000");
+
+        ws.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+
+          if (msg.type === "agent_audio") {
+            playAudioChunk(msg.audio);
+          } else {
+            console.log("SERVER:", msg);
+          }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        source = audioContext.createMediaStreamSource(stream);
+
+        processor = audioContext.createScriptProcessor(4096, 1, 1);
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+
+        processor.onaudioprocess = (e) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+
+          const input = e.inputBuffer.getChannelData(0);
+          const downsampled = downsample(input, audioContext.sampleRate, 16000);
+          const pcm = floatTo16BitPCM(downsampled);
+
+          ws.send(JSON.stringify({
+            type: "audio_chunk",
+            pcm: btoa(String.fromCharCode(...pcm)),
+          }));
+        };
+      };
+
+      document.getElementById("stop").onclick = () => {
+        processor?.disconnect();
+        source?.disconnect();
+        ws?.close();
+      };
+    </script>
+  </body>
+</html>
