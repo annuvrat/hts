@@ -10,9 +10,16 @@ const server = Bun.serve<WSData>({
   port: 3000,
 
   fetch(req, server) {
-    if (server.upgrade(req)) {
-      return;
-    }
+   if (
+  server.upgrade(req, {
+    data: {
+      session: new SessionState(),
+    },
+  })
+) {
+  return;
+}
+
     return app.fetch(req);
   },
 
